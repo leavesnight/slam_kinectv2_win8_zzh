@@ -1,0 +1,8 @@
+;LIBRARY "RGBDSLAMByBXJS_DLLd"
+;LIBRARY
+EXPORTS
+image2PointCloud
+point2dTo3d
+computeKeyPointsAndDesp
+cvMat2Eigen
+joinPointCloud
