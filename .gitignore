@@ -21,16 +21,6 @@ bld/
 #[Bb]in/
 [Oo]bj/
 [Ll]og/
-/*
-!.gitignore
-!/bin/
-!/include/
-!/lib/
-!/ppt/
-!/RGBDSLAMByBXJS_DLL/
-!/SLAMByZzh/
-!README.md
-
 
 # Visual Studio 2015 cache/options directory
 .vs/
@@ -260,3 +250,14 @@ paket-files/
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+# Defined by user
+/*
+!.gitignore
+!/bin/
+!/include/
+!/lib/
+!/ppt/
+!/RGBDSLAMByBXJS_DLL/
+!/SLAMByZzh/
+!README.md
