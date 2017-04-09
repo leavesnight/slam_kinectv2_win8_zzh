@@ -24,7 +24,7 @@ rgb_extension=.png
 depth_dir=D:/0Interest/1Programme/C++/kinect/datasetbyzzh/depth_png/
 depth_extension=.png
 #the resolution of PC
-voxel_grid=0.02
+voxel_grid=0.05
 #if real-time visualization
 visualize_pointcloud=yes
 #minimum number of good matches

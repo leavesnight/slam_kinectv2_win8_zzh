@@ -103,7 +103,7 @@ void on_mouse2(int event,int x,int y,int flags,void* ustc){
 vector<int> loopIndexPairs;
 
 //main function
-int main(){
+int main(int argc, char** argv){
 	//Open KV2
 	//read color and depth data from kinect and tranform them to PC
 	cout<<"Hello SLAM!"<<endl;
@@ -226,6 +226,8 @@ int main(){
 			if (f.frameID!=-1)
 				currIndex++;
 		}while (currIndex<400);
+	}else{
+		cv::destroyAllWindows();
 	}
 	//initialize
 	cout<<"Initializeing..."<<endl;
@@ -345,7 +347,7 @@ CYCLE:
 	pcl::io::savePCDFile("result.pcd",*tmp);
 	cout<<"Final map is saved."<<endl;
 
-	for (int i=0;i<loopIndexPairs.size();i+=2){
+	for (int i=0;i<loopIndexPairs.size()-1;i+=2){
 		cout<<"Random: "<<loopIndexPairs[i]<<" "<<loopIndexPairs[i+1]<<endl;
 	}
 
@@ -375,7 +377,8 @@ ENDCLOSE:
 	pKinect->Release();
 	delete[] pColorSP;
 ENDSTOP:
-	cv::destroyAllWindows();
+	if (strAns=="Y")
+		cv::destroyAllWindows();
 	system("pause");
 
 	return 0;
