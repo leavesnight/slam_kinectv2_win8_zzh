@@ -80,7 +80,8 @@ RESULT_OF_PNP estimateMotion(FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PARA
 {
 	static ParameterReader pd;
 	vector<cv::DMatch> matches;
-	cv::FlannBasedMatcher matcher;
+	//cv::FlannBasedMatcher matcher;
+	cv::BFMatcher matcher(cv::NORM_HAMMING);
 	matcher.match(frame1.desp,frame2.desp,matches);
 
 	cout<<"find total "<<matches.size()<<" matches."<<endl;

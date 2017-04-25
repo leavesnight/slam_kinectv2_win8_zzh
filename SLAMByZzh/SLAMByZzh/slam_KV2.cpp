@@ -101,6 +101,7 @@ void on_mouse2(int event,int x,int y,int flags,void* ustc){
 }
 
 vector<int> loopIndexPairs;
+int g_count=0;
 
 //main function
 int main(int argc, char** argv){
@@ -158,12 +159,6 @@ int main(int argc, char** argv){
 	depthfd->get_Width(&wid2);
 	printf("Depth: %d %d\n",hei2,wid2);
 
-	//Create windows
-	//API:http://docs.opencv.org/modules/highgui/doc/reading_and_writing_images_and_video.html?highlight=imread#cv2.imread
-	cv::namedWindow("Test Color");//call a window
-	cv::namedWindow("Test Depth");
-	cvSetMouseCallback("Test Color",on_mouse);
-	cvSetMouseCallback("Test Depth",on_mouse2);
 	//get pColorSP for KV2
 	int count=hei2*wid2;
 	ColorSpacePoint* pColorSP=new ColorSpacePoint[count];
@@ -217,6 +212,12 @@ int main(int argc, char** argv){
 	string strAns;
 	cin>>strAns;
 	if (strAns=="Y"){
+		//Create windows
+		//API:http://docs.opencv.org/modules/highgui/doc/reading_and_writing_images_and_video.html?highlight=imread#cv2.imread
+		cv::namedWindow("Test Color");//call a window
+		cv::namedWindow("Test Depth");
+		cvSetMouseCallback("Test Color",on_mouse);
+		cvSetMouseCallback("Test Depth",on_mouse2);
 		do
 		{
 			//Sleep(300);
@@ -226,8 +227,6 @@ int main(int argc, char** argv){
 			if (f.frameID!=-1)
 				currIndex++;
 		}while (currIndex<400);
-	}else{
-		cv::destroyAllWindows();
 	}
 	//initialize
 	cout<<"Initializeing..."<<endl;
@@ -262,13 +261,22 @@ int main(int argc, char** argv){
 	bool check_loop_closure=pd.getData("check_loop_closure")==string("yes");
 
 CYCLE:
+	clock_t nTmStart=clock(),g_count1=0,g_count2=0;
 	//the id of last frame is already recorded in FRAME structure
 	for (currIndex=startIndex+1;currIndex<endIndex;currIndex++)
 	{
+		/*if (clock()-nTmStart>10*CLOCKS_PER_SEC){
+			cout<<"speed: "<<currIndex/10<<" fps"<<endl;
+			break;
+		}*/
 		cout<<"Reading files"<<currIndex<<endl;
 		FRAME currFrame=readFrame(currIndex,pd);
+		clock_t nTmTmp=clock();
 		computeKeyPointsAndDesp(currFrame,detector,descriptor);
+		g_count1+=clock()-nTmTmp;
+		clock_t nTmTmp2=clock();
 		CHECK_RESULT result=checkKeyframes(keyframes.back(),currFrame,globalOptimizer);//match I(currFrame) with the last frame in F(keyframes)
+		g_count2+=clock()-nTmTmp2;
 		switch(result)
 		{
 		case NOT_MATCHED:
@@ -298,7 +306,8 @@ CYCLE:
 			break;
 		}
 	}
-
+	cout<<"speed: "<<currIndex-startIndex<<"/"<<(clock()-nTmStart)/CLOCKS_PER_SEC<<" fps"<<endl;
+	cout<<"g1: "<<g_count1<<" g2:"<<g_count2<<" g_pnp:"<<g_count<<endl;
 	//optimize all edges
 	cout<<"optimizing pose grah, vertices: "<<globalOptimizer.vertices().size()<<endl;
 	globalOptimizer.save("result_before.g2o");
@@ -522,7 +531,9 @@ CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti, bo
 	static CAMERA_INTRINSIC_PARAMETERS camera=getDefaultCamera();
 	static g2o::RobustKernel* robustKernel=g2o::RobustKernelFactory::instance()->construct("Cauchy");
 	//compare f1 & f2
+	clock_t nTmTmp=clock();
 	RESULT_OF_PNP result=estimateMotion(f1,f2,camera);
+	g_count+=clock()-nTmTmp;
 	if (result.inliers<min_inliers)//if inliers is not enough, give up currFrame
 		return NOT_MATCHED;
 	//calculate the motion range
