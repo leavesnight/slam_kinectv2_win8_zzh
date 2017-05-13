@@ -78,25 +78,34 @@ inline ostream& white(std::ostream& s)
 	return s;
 }
 
+ICoordinateMapper* pMapper;
 //when mouse clicked, show the coordinate
-IplImage* src=0;
+//IplImage* src=nullptr;
+cv::Mat srcMat;
 void on_mouse(int event,int x,int y,int flags,void* ustc){
-	CvFont font;
-	cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX,1,1,0,2,CV_AA);
+	//CvFont font;
+	//cvInitFont(&font,CV_FONT_HERSHEY_SIMPLEX,1,1,0,2,CV_AA);
 	if (event==CV_EVENT_LBUTTONDOWN){
-		CvPoint pt=cvPoint(x*4/5,y*540/695);//???
+		//CvPoint pt=cvPoint(x*4/5,y*540/695);//???
+		CvPoint pt=cvPoint(x,y);
 		char temp[16];
 		sprintf(temp,"(%d,%d)",x,y);
-		cvPutText(src,temp,pt,&font,cvScalar(255,255,255,0));
-		cvCircle(src,pt,4,cvScalar(255,0,0,0),CV_FILLED,CV_AA);
-		//cv::Mat srcMat=cv::Mat(src);
-		cvShowImage("Test Color",src);//cv::imshow("Test Color",srcMat);
-		printf("%d,%d, Color\n",x,y);
+		//src=&IplImage(srcMat);
+		//cvPutText(src,temp,pt,&font,cvScalar(255,255,255,0));
+		cv::putText(srcMat,temp,pt,CV_FONT_HERSHEY_SIMPLEX,1,cv::Scalar(255,255,255,0),2,CV_AA);
+		//cvCircle(src,pt,4,cvScalar(255,0,0,0),CV_FILLED,CV_AA);
+		cv::circle(srcMat,pt,4,cv::Scalar(255,0,0,0),CV_FILLED,CV_AA);
+		//cvShowImage("Test Color",src);
+		cv::imshow("Test Color",srcMat);
+		cv::waitKey(500);
+		//printf("%d,%d, Color\n",x,y);
+		cout<<green<<x<<","<<y<<" Color"<<white<<endl;
 	}
 }
 void on_mouse2(int event,int x,int y,int flags,void* ustc){
 	if (event==CV_EVENT_LBUTTONDOWN){
-		printf("%d,%d, Depth\n",x,y);
+		//printf("%d,%d, Depth\n",x,y);
+		cout<<green<<x<<","<<y<<" Depth"<<white<<endl;
 	}
 }
 
@@ -159,10 +168,10 @@ int main(int argc, char** argv){
 	depthfd->get_Width(&wid2);
 	printf("Depth: %d %d\n",hei2,wid2);
 
-	//get pColorSP for KV2
-	int count=hei2*wid2;
+	//get pColorSP for KV2,actually it's pDepthSP
+	int count=height*width;
 	ColorSpacePoint* pColorSP=new ColorSpacePoint[count];
-	ICoordinateMapper* pMapper;
+//	ICoordinateMapper* pMapper;
 	pKinect->get_CoordinateMapper(&pMapper);
 	CameraIntrinsics camIntr;
 	pMapper->GetDepthCameraIntrinsics(&camIntr);
@@ -170,38 +179,6 @@ int main(int argc, char** argv){
 		<<camIntr.PrincipalPointX<<" "<<camIntr.PrincipalPointY<<" "
 		<<camIntr.RadialDistortionSecondOrder<<" "<<camIntr.RadialDistortionFourthOrder
 		<<" "<<camIntr.RadialDistortionSixthOrder<<endl;
-#ifdef _DEBUG
-	UINT16* pDepthData=new UINT16[hei2*wid2];
-	/*for (int i=0;i<hei2;i++)
-		for (int j=0;j<wid2;j++)
-		{
-			pDepthData[i*wid2+j]=((UINT16*)depth.data)[i*wid2+j];//depth.ptr<ushort>(i)[j];
-			cout<<pDepthData[i*wid2+j]<<endl;
-		}*/
-	pMapper->MapDepthFrameToColorSpace(count,pDepthData,count,pColorSP);//(UINT16*)depth.data
-	delete[] pDepthData;
-	ofstream fout("pColorSPd.txt");
-	for (int i=0;i<hei2;i++)
-	{
-		for (int j=0;j<wid2;j++)
-		{
-			fout<<pColorSP[i*wid2+j].X<<" "<<pColorSP[i*wid2+j].Y<<" ";
-		}
-		fout<<endl;
-	}
-	fout.close();//fout<<flush;
-#else
-	ifstream fin("pColorSPd.txt");
-	for (int i=0;i<hei2;i++)
-	{
-		for (int j=0;j<wid2;j++)
-		{
-			fin>>pColorSP[i*wid2+j].X>>pColorSP[i*wid2+j].Y;
-		}
-	}
-	fin.close();
-#endif
-
 
 	//SLAM
 	ParameterReader pd;//get the basic slam information
@@ -211,7 +188,7 @@ int main(int argc, char** argv){
 	cout<<"Do you want to take photos?Y or N"<<endl;
 	string strAns;
 	cin>>strAns;
-	if (strAns=="Y"){
+	if (strAns=="Y"||strAns=="y"){
 		//Create windows
 		//API:http://docs.opencv.org/modules/highgui/doc/reading_and_writing_images_and_video.html?highlight=imread#cv2.imread
 		cv::namedWindow("Test Color");//call a window
@@ -260,6 +237,23 @@ int main(int argc, char** argv){
 	keyframes.push_back(currFrame);//add f0 to F
 	bool check_loop_closure=pd.getData("check_loop_closure")==string("yes");
 
+	/*cv::Size shSize=cv::Size(width/2,height/2);//notice Size uses width first!
+	cv::Mat rgbsh(shSize,CV_8UC3);
+	cv::resize(currFrame.rgb,rgbsh,shSize);
+	for (int i=0;i<rgbsh.rows;++i){
+		for (int j=0;j<rgbsh.cols;++j){
+			rgbsh.ptr<uchar>(i)[j*3]=rgbsh.ptr<uchar>(i)[j*3]*0.5+0.5*currFrame.depth.ptr<ushort>(i)[j]*255.0/4500;
+			rgbsh.ptr<uchar>(i)[j*3+1]=rgbsh.ptr<uchar>(i)[j*3+1]*0.5+0.5*currFrame.depth.ptr<ushort>(i)[j]*255.0/4500;
+			rgbsh.ptr<uchar>(i)[j*3+2]=rgbsh.ptr<uchar>(i)[j*3+2]*0.5+0.5*currFrame.depth.ptr<ushort>(i)[j]*255.0/4500;
+		}
+	}
+	srcMat=rgbsh.clone();
+	imshow("Test Color",rgbsh);
+	cv::waitKey(1);
+	cvSetMouseCallback("Test Color",on_mouse);
+	if (currFrame.frameID==currIndex)
+		system("pause");*/
+
 CYCLE:
 	clock_t nTmStart=clock(),g_count1=0,g_count2=0;
 	//the id of last frame is already recorded in FRAME structure
@@ -301,6 +295,18 @@ CYCLE:
 				checkRandomLoops(keyframes,currFrame,globalOptimizer);
 			}
 			keyframes.push_back(currFrame);
+			/*cv::resize(currFrame.rgb,rgbsh,shSize);
+			for (int i=0;i<rgbsh.rows;++i){
+				for (int j=0;j<rgbsh.cols;++j){
+					rgbsh.ptr<uchar>(i)[j*3]=rgbsh.ptr<uchar>(i)[j*3]*0.5+0.5*currFrame.depth.ptr<ushort>(i)[j]*255.0/4500;
+					rgbsh.ptr<uchar>(i)[j*3+1]=rgbsh.ptr<uchar>(i)[j*3+1]*0.5+0.5*currFrame.depth.ptr<ushort>(i)[j]*255.0/4500;
+					rgbsh.ptr<uchar>(i)[j*3+2]=rgbsh.ptr<uchar>(i)[j*3+2]*0.5+0.5*currFrame.depth.ptr<ushort>(i)[j]*255.0/4500;
+				}
+			}
+			cout<<rgbsh.cols<<endl;
+			srcMat=rgbsh.clone();
+			imshow("Test Color",rgbsh);
+			cv::waitKey(1);*/
 			break;
 		default:
 			break;
@@ -320,7 +326,6 @@ CYCLE:
 	cout<<"saving the point cloud map..."<<endl;
 	PointCloud::Ptr output(new PointCloud());//global map
 	PointCloud::Ptr tmp(new PointCloud);
-	tmp->height=1;tmp->width=tmp->points.size();tmp->is_dense=false;//if don't initialize tmp and save it as pcd, the program will be stopped at the end
 	CAMERA_INTRINSIC_PARAMETERS camCM=getDefaultCamera();//get camera calibration matrix
 
 	pcl::VoxelGrid<PointT> voxel;//grid filter, adjust the map resolution
@@ -369,6 +374,7 @@ CYCLE:
 	output->clear();
 	tmp->clear();
 	globalOptimizer.clear();
+	g2o::RobustKernelFactory::destroy();
 
 	//clear KV2 data and return
 ENDCAPTURE:
@@ -440,8 +446,11 @@ FRAME readFrame(int index, ParameterReader& pd,IColorFrameReader* colorfr,IDepth
 	cv::Size shSize=cv::Size(sizeC.width/2,sizeC.height/2);//notice Size uses width first!
 	cv::Mat rgbsh(shSize,CV_8UC4),depsh(sizeD.height,sizeD.width,CV_8UC1);
 
+	static clock_t fps_tmstart=clock();
+	static int fps_times=0;
 	FRAME f;
 	f.frameID=-1;
+	ColorSpacePoint* pColorSP2=new ColorSpacePoint[sizeD.height*sizeD.width];
 	do
 	{
 		IColorFrame* colorf=nullptr;
@@ -468,28 +477,159 @@ FRAME readFrame(int index, ParameterReader& pd,IColorFrameReader* colorfr,IDepth
 			cout<<green<<"error in taking depth photos!!!"<<endl;
 			return f;
 		}
-		depth.convertTo(depsh,CV_8UC1,255.0/4500);
-		cv::resize(rgb,rgbsh,shSize);
-		src=&IplImage(rgbsh);
-		imshow("Test Color",rgbsh);
-		imshow("Test Depth",depsh);
-	}while (cv::waitKey(30)!=VK_ESCAPE&&bFirst);
-
-	//f.depth=cv::Mat(sizeD.height,sizeD.width,CV_16UC1);
-	depth.copyTo(f.depth);
-	f.rgb=cv::Mat(sizeD.height,sizeD.width,CV_8UC3);
-	for (int m=0;m<depth.rows;m++)
-		for (int n=0;n<depth.cols;n++){
-			if (pColorSP[m*depth.cols+n].Y<0||pColorSP[m*depth.cols+n].Y>=rgb.rows||
-					pColorSP[m*depth.cols+n].X<0||pColorSP[m*depth.cols+n].X>=rgb.cols)
-			{
-				f.rgb.ptr<uchar>(m)[n*3]=f.rgb.ptr<uchar>(m)[n*3+1]=f.rgb.ptr<uchar>(m)[n*3+2]=0;
-			}else{
-				f.rgb.ptr<uchar>(m)[n*3]=rgb.data[((int)pColorSP[m*depth.cols+n].Y*rgb.cols+(int)pColorSP[m*depth.cols+n].X)*4];//change 4 channels to 3 and use pColorSP[], b
-				f.rgb.ptr<uchar>(m)[n*3+1]=rgb.data[((int)pColorSP[m*depth.cols+n].Y*rgb.cols+(int)pColorSP[m*depth.cols+n].X)*4+1];//g
-				f.rgb.ptr<uchar>(m)[n*3+2]=rgb.data[((int)pColorSP[m*depth.cols+n].Y*rgb.cols+(int)pColorSP[m*depth.cols+n].X)*4+2];//r
+		/*for (int i=0;i<rgb.rows;++i){
+			for (int j=0;j<rgb.cols/2;++j){
+				for (int k=0;k<4;++k){
+					int tmp=rgb.ptr<uchar>(i)[j*4+k];
+					rgb.ptr<uchar>(i)[j*4+k]=rgb.ptr<uchar>(i)[(rgb.cols-1-j)*4+k];
+					rgb.ptr<uchar>(i)[(rgb.cols-1-j)*4+k]=tmp;
+				}
 			}
 		}
+		for (int i=0;i<depth.rows;++i){
+			for (int j=0;j<depth.cols/2;++j){
+				int tmp=depth.ptr<ushort>(i)[j];
+				depth.ptr<ushort>(i)[j]=depth.ptr<ushort>(i)[depth.cols-1-j];
+				depth.ptr<ushort>(i)[depth.cols-1-j]=tmp;
+			}
+			for (int j=0;j<depth.cols;++j)
+				if (depth.ptr<ushort>(i)[j]==0);
+				//	depth.ptr<ushort>(i)[j]=4500;
+				//else depth.ptr<ushort>(i)[j]+=275;
+		}*/
+		HRESULT hres=pMapper->MapColorFrameToDepthSpace(sizeD.height*sizeD.width,(UINT16*)depth.data,sizeC.height*sizeC.width,(DepthSpacePoint*)pColorSP);
+		if (hres==S_OK)
+			hres=pMapper->MapDepthFrameToColorSpace(sizeD.height*sizeD.width,(UINT16*)depth.data,sizeD.height*sizeD.width,pColorSP2);
+		if (hres!=S_OK){
+			cout<<"error_code= "<<hres<<endl;
+			system("pause");
+		}
+		/*for (int i=0;i<sizeD.height*sizeD.width;++i)
+			cout<<pColorSP2[i].X<<" ";
+		cout<<endl;
+		system("pause");
+		struct Node{
+			int x,y;
+			ushort d;
+			Node():d(-1){}
+		};
+		vector<Node> vecColorUsed(sizeC.height*sizeC.width);*/
+		depth.convertTo(depsh,CV_8UC1,255.0/4500);
+		/*for (int m=0;m<depth.rows;m++)
+			for (int n=0;n<depth.cols;n++){
+				int mapy=pColorSP2[m*depth.cols+n].Y,mapx=pColorSP2[m*depth.cols+n].X;
+				//int min_val=~0u>>1,miny=mapy,minx=mapx;
+				//mapy=std::floor(pColorSP2[m*depth.cols+n].Y+0.5);
+				//mapx=std::floor(pColorSP2[m*depth.cols+n].X+0.5);
+				if (mapy<0||mapy>=rgb.rows||depth.ptr<ushort>(m)[n]==0||
+					mapx<0||mapx>=rgb.cols)
+				{
+					rgbsh.ptr<uchar>(m)[n*4]=rgbsh.ptr<uchar>(m)[n*4+1]=rgbsh.ptr<uchar>(m)[n*4+2]=0;
+				}else{
+					int index_tmp=mapy*rgb.cols+mapx;
+					if (abs(pColorSP[index_tmp].Y-m)<=1&&abs(pColorSP[index_tmp].X-n)<=1){
+					//if (vecColorUsed[index_tmp].d<=0||depth.ptr<ushort>(m)[n]!=0&&depth.ptr<ushort>(m)[n]<vecColorUsed[index_tmp].d){
+						//if (vecColorUsed[index_tmp].d>0)
+						//	rgbsh.ptr<uchar>(vecColorUsed[index_tmp].y)[vecColorUsed[index_tmp].x*4]=rgbsh.ptr<uchar>(vecColorUsed[index_tmp].y)[vecColorUsed[index_tmp].x*4+1]=rgbsh.ptr<uchar>(vecColorUsed[index_tmp].y)[vecColorUsed[index_tmp].x*4+2]=0;
+						//vecColorUsed[index_tmp].y=m;vecColorUsed[index_tmp].x=n;
+						//vecColorUsed[index_tmp].d=depth.ptr<ushort>(m)[n];
+						rgbsh.ptr<uchar>(m)[n*4]=rgb.data[index_tmp*4];//change 4 channels to 3 and use pColorSP[], b
+						rgbsh.ptr<uchar>(m)[n*4+1]=rgb.data[index_tmp*4+1];//g
+						rgbsh.ptr<uchar>(m)[n*4+2]=rgb.data[index_tmp*4+2];//r
+						for (int k=0;k<3;++k){
+							int tmp=rgbsh.ptr<uchar>(m)[n*4+k]*0.5+0.5*depsh.ptr<uchar>(m)[n];
+							if (tmp>255) tmp=255;
+							rgbsh.ptr<uchar>(m)[n*4+k]=tmp;
+						}
+					}else
+						rgbsh.ptr<uchar>(m)[n*4]=rgbsh.ptr<uchar>(m)[n*4+1]=rgbsh.ptr<uchar>(m)[n*4+2]=0;//be kept out
+				}
+			}*/
+		cv::resize(rgb,rgbsh,shSize);
+		/*depsh=cv::Mat::zeros(depsh.rows,depsh.cols,CV_8UC1);
+		for (int i=0;i<rgbsh.rows;++i){
+			int m=i*rgb.rows/rgbsh.rows;
+			for (int j=0;j<rgbsh.cols;++j){
+				int n=j*rgb.cols/rgbsh.cols;
+				int mapy=pColorSP[m*rgb.cols+n].Y,mapx=pColorSP[m*rgb.cols+n].X;
+				/*for (int k1=0;k1<2;++k1){
+					for (int k2=0;k2<4;++k2){
+						mapy=std::floor(pColorSP[m*rgb.cols+n].Y+0.5*k1);
+						mapx=std::floor(pColorSP[m*rgb.cols+n].X+0.5*k2);
+						if (mapy>=0&&mapy<depth.rows&&mapx>=0&&mapx<depth.cols
+							&&depsh.data[mapy*depth.cols+mapx]==0)
+								break;
+					}
+					if (mapy>=0&&mapy<depth.rows&&mapx>=0&&mapx<depth.cols
+						&&depsh.data[mapy*depth.cols+mapx]==0)
+							break;
+				}*//*
+				if (mapy<0||mapy>=depth.rows||mapx<0||mapx>=depth.cols)
+				{
+					for (int k=0;k<3;++k){
+						int tmp=rgb.ptr<uchar>(m)[n*4+k]*15.0/255;
+						if (tmp>255) tmp=255;
+						rgbsh.ptr<uchar>(i)[j*4+k]=tmp;
+					}
+				}else{
+					int index_tmp=mapy*depth.cols+mapx;
+					int tmp=((UINT16*)depth.data)[index_tmp]*255.0/4500;
+					if (tmp>255) tmp=255;
+					depsh.data[index_tmp]=tmp;
+					for (int k=0;k<3;++k){
+						int tmp=rgb.ptr<uchar>(m)[n*4+k]*(depsh.data[index_tmp]+15.0)/255;
+						if (tmp>255) tmp=255;
+						rgbsh.ptr<uchar>(i)[j*4+k]=tmp;
+					}
+				}
+			}
+		}*/
+		cv::flip(rgbsh,rgbsh,1);
+		++fps_times;
+		static ostringstream oss;
+		if (clock()-fps_tmstart>=1000){
+			oss.str("");
+			oss<<"fps: "<<fps_times*1000/(clock()-fps_tmstart);
+			fps_times=0;
+			fps_tmstart=clock();
+		}
+		cv::putText(rgbsh,oss.str(),cv::Point(rgbsh.cols/10,rgbsh.rows/10),CV_FONT_HERSHEY_SIMPLEX,1,cv::Scalar(255,0,0,0));
+		srcMat=rgbsh.clone();
+		imshow("Test Color",rgbsh);
+		cv::flip(depsh,depsh,1);
+		imshow("Test Depth",depsh);
+	}while (cv::waitKey(30)!=VK_ESCAPE&&bFirst);
+	delete pColorSP2;
+
+	////f.depth=cv::Mat(sizeD.height,sizeD.width,CV_16UC1);
+	//x:(110-860)*2 is effective
+	//depth.copyTo(f.depth);
+	f.rgb=cv::Mat(shSize,CV_8UC3);
+	for (int m=0;m<f.rgb.rows;m++)
+		for (int n=0;n<f.rgb.cols;n++){
+			int index_tmp=(m*rgb.rows/f.rgb.rows*rgb.cols+n*rgb.cols/f.rgb.cols)*4;
+			f.rgb.ptr<uchar>(m)[n*3]=rgb.data[index_tmp];//change 4 channels to 3, b
+			f.rgb.ptr<uchar>(m)[n*3+1]=rgb.data[index_tmp+1];//g
+			f.rgb.ptr<uchar>(m)[n*3+2]=rgb.data[index_tmp+2];//r
+		}
+	f.depth=cv::Mat::zeros(f.rgb.rows,f.rgb.cols,CV_16UC1);
+	for (int i=0;i<f.rgb.rows;i++){
+		int m=i*rgb.rows/f.rgb.rows;
+		for (int j=0;j<f.rgb.cols;j++){
+			int n=j*rgb.cols/f.rgb.cols;
+			if (pColorSP[m*rgb.cols+n].Y<0||pColorSP[m*rgb.cols+n].Y>=depth.rows||
+					pColorSP[m*rgb.cols+n].X<0||pColorSP[m*rgb.cols+n].X>=depth.cols)
+			{
+			}else{
+				int index_tmp=(int)pColorSP[m*rgb.cols+n].Y*depth.cols+(int)pColorSP[m*rgb.cols+n].X;
+				int tmp=((UINT16*)depth.data)[index_tmp];
+				if (tmp>0) tmp+=275;//about 27.5cm depth offset for my kinectv2!
+				f.depth.ptr<ushort>(i)[j]=tmp;
+			}
+		}
+	}
+	cv::flip(f.rgb,f.rgb,1);
+	cv::flip(f.depth,f.depth,1);
 	f.frameID=index;
 	//imshow("Test Color2",f.rgb);
 	//cout<<40<<" 250: "<<pColorSP[40*depth.cols+250].Y<<" "<<pColorSP[40*depth.cols+250].X<<endl;//71,930
@@ -520,6 +660,7 @@ double normofTransform(cv::Mat rvec, cv::Mat tvec)
 	return fabs(min(cv::norm(rvec),2*M_PI-cv::norm(rvec)))+fabs(cv::norm(tvec));
 }
 
+Eigen::Isometry3d Tcurr=Eigen::Isometry3d::Identity();
 CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti, bool is_loops)
 {
 	static ParameterReader pd;
@@ -529,7 +670,6 @@ CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti, bo
 
 	static double max_norm_lp=atof(pd.getData("max_norm_lp").c_str());
 	static CAMERA_INTRINSIC_PARAMETERS camera=getDefaultCamera();
-	static g2o::RobustKernel* robustKernel=g2o::RobustKernelFactory::instance()->construct("Cauchy");
 	//compare f1 & f2
 	clock_t nTmTmp=clock();
 	RESULT_OF_PNP result=estimateMotion(f1,f2,camera);
@@ -553,11 +693,13 @@ CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti, bo
 		return TOO_CLOSE;// too adjacent frame
 	//add this vertex and the edge connected to lastframe to g2o
 	//vertex, only need id
+	Eigen::Isometry3d T=cvMat2Eigen(result.rvec,result.tvec);
 	if (is_loops==false)//if it's not a loop closure check, the vertex should be added
 	{
 		g2o::VertexSE3* v=new g2o::VertexSE3();
 		v->setId(f2.frameID);
-		v->setEstimate(Eigen::Isometry3d::Identity());
+		Tcurr=Tcurr*T.inverse();
+		v->setEstimate(Tcurr);//Eigen::Isometry3d::Identity());//
 		opti.addVertex(v);
 	}
 	//edge part
@@ -565,6 +707,7 @@ CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti, bo
 	//connect two vertices of this edge
 	edge->vertices()[0]=opti.vertex(f1.frameID);
 	edge->vertices()[1]=opti.vertex(f2.frameID);
+	g2o::RobustKernel* robustKernel=g2o::RobustKernelFactory::instance()->construct("Cauchy");//if use static, the program will be stopped at the end for unregistered problem
 	edge->setRobustKernel(robustKernel);//relieve the false positive problem, avoid a few wrong edges influence the total result
 	//info matrix
 	Eigen::Matrix<double,6,6> information=Eigen::Matrix<double,6,6>::Identity();
@@ -576,7 +719,6 @@ CHECK_RESULT checkKeyframes(FRAME& f1, FRAME& f2, g2o::SparseOptimizer& opti, bo
 	//can also set the angle larger to show the estimation of angle is more accurate
 	edge->setInformation(information);
 	//the estimation of edge is the result of pnp solution
-	Eigen::Isometry3d T=cvMat2Eigen(result.rvec,result.tvec);
 	edge->setMeasurement(T.inverse());//for xi=Tij*xj so Tij means the inverse of Tji
 	//add this edge to the pose graph
 	opti.addEdge(edge);

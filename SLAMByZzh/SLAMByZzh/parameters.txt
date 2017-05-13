@@ -7,10 +7,10 @@ descriptor=ORB
 good_match_threshold=4
 
 #camera
-camera.cx=258.879;
-camera.cy=204.966;
-camera.fx=364.448;
-camera.fy=364.448;
+camera.cx=475.487;
+camera.cy=275.789;
+camera.fx=517.867;
+camera.fy=517.535;
 camera.scale=1000.0;
 
 #part 5
@@ -24,7 +24,7 @@ rgb_extension=.png
 depth_dir=D:/0Interest/1Programme/C++/kinect/datasetbyzzh/depth_png/
 depth_extension=.png
 #the resolution of PC
-voxel_grid=0.05
+voxel_grid=0.02
 #if real-time visualization
 visualize_pointcloud=yes
 #minimum number of good matches
