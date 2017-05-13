@@ -80,11 +80,15 @@ RESULT_OF_PNP estimateMotion(FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PARA
 {
 	static ParameterReader pd;
 	vector<cv::DMatch> matches;
-	//cv::FlannBasedMatcher matcher;
-	cv::BFMatcher matcher(cv::NORM_HAMMING);
-	matcher.match(frame1.desp,frame2.desp,matches);
+	if (pd.getData("detector")=="ORB"){
+		cv::BFMatcher matcher(cv::NORM_HAMMING);
+		matcher.match(frame1.desp,frame2.desp,matches);
+	}else{
+		cv::FlannBasedMatcher matcher;
+		matcher.match(frame1.desp,frame2.desp,matches);
+	}
 
-	cout<<"find total "<<matches.size()<<" matches."<<endl;
+	//cout<<"find total "<<matches.size()<<" matches."<<endl;
 	vector<cv::DMatch> goodMatches;
 	double minDis=9999;
 	double good_match_threshold=atof(pd.getData("good_match_threshold").c_str());
@@ -93,13 +97,21 @@ RESULT_OF_PNP estimateMotion(FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PARA
 		if (matches[i].distance<minDis)
 			minDis=matches[i].distance;
 	}
+	//new adder
+	//if (minDis<10)
+	//	minDis=10;
 	for (size_t i=0;i<matches.size();i++)
 	{
 		if (matches[i].distance<good_match_threshold*minDis)
 			goodMatches.push_back(matches[i]);
 	}
-
-	cout<<"good matches: "<<goodMatches.size()<<endl;
+	RESULT_OF_PNP result;
+	//new adder
+	if (goodMatches.size()<5){
+		result.inliers=-1;
+		return result;
+	}
+	//cout<<"good matches: "<<goodMatches.size()<<endl;
 	//the 3D point of the frame1
 	vector<cv::Point3f> pts_obj;
 	//the pic point of the frame2
@@ -121,29 +133,27 @@ RESULT_OF_PNP estimateMotion(FRAME& frame1, FRAME& frame2, CAMERA_INTRINSIC_PARA
 		cv::Point3f pd=point2dTo3d(pt,camera);
 		pts_obj.push_back(pd);
 	}
-
+	if (pts_obj.size()==0||pts_img.size()==0){//solvePnP cannot solve the size=0 problems
+		/*rvec=cv::Mat::eye(3,3,CV_64F);
+		tvec=cv::Mat::zeros(3,1,CV_64F);
+		inliers=cv::Mat::zeros(1,1,CV_32S);*/
+		result.inliers=-1;
+		return result;
+	}
 	double camera_matrix_data[3][3]={
 		{camera.fx,0,camera.cx},
 		{0,camera.fy,camera.cy},
 		{0,0,1}
 	};
 
-	cout<<"solving pnp"<<endl;
+	//cout<<"solving pnp"<<endl;
 	//build camera matrix
 	cv::Mat cameraMatrix(3,3,CV_64F,camera_matrix_data);
 	cv::Mat rvec,tvec,inliers;
 	//solve pnp
-	if (pts_obj.size()!=0&&pts_img.size()!=0)
-		cv::solvePnPRansac(pts_obj,pts_img,cameraMatrix,cv::Mat(),rvec,tvec,false,
-			100,1.0,100,inliers);
-	else
-	{
-		rvec=cv::Mat::zeros(3,3,CV_64F);
-		tvec=cv::Mat::zeros(3,1,CV_64F);
-		inliers=cv::Mat::zeros(1,1,CV_32S);
-	}
+	cv::solvePnPRansac(pts_obj,pts_img,cameraMatrix,cv::Mat(),rvec,tvec,false,
+		100,1.0,100,inliers);//solvePnP cannot solve the size=0 problems
 
-	RESULT_OF_PNP result;
 	result.rvec=rvec;
 	result.tvec=tvec;
 	result.inliers=inliers.rows;//here inliers don't accord to the right order in GM
