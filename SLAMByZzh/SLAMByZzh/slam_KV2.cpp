@@ -185,9 +185,14 @@ int main(int argc, char** argv){
 	vector<FRAME> keyframes;//keyframes array
 	//save SLAM images from kinectv2
 	int currIndex=0;
-	cout<<"Do you want to take photos?Y or N"<<endl;
+	cout<<"Do you want to take photos?Y or N or C(loud)"<<endl;
 	string strAns;
 	cin>>strAns;
+	//if PC is displayed
+	bool visualize=pd.getData("visualize_pointcloud")==string("yes");
+	pcl::visualization::CloudViewer viewer("viewer");
+	PointCloud::Ptr cloud;
+	CAMERA_INTRINSIC_PARAMETERS camCM=getDefaultCamera();//get camera calibration matrix
 	if (strAns=="Y"||strAns=="y"){
 		//Create windows
 		//API:http://docs.opencv.org/modules/highgui/doc/reading_and_writing_images_and_video.html?highlight=imread#cv2.imread
@@ -204,6 +209,23 @@ int main(int argc, char** argv){
 			if (f.frameID!=-1)
 				currIndex++;
 		}while (currIndex<400);
+	}else if (strAns=="C"){
+		cv::namedWindow("Test Color");//call a window
+		cv::namedWindow("Test Depth");
+		cvSetMouseCallback("Test Color",on_mouse);
+		cvSetMouseCallback("Test Depth",on_mouse2);
+		do
+		{
+			//Sleep(300);
+			currIndex=400;
+			cout<<"Reading files"<<currIndex<<endl;
+			FRAME f=readFrame(currIndex,pd,colorfr,depthfr,
+			cv::Size(width,height),cv::Size(wid2,hei2),pColorSP,!currIndex);//read the KV2 to get currFrame
+			cloud=image2PointCloud(f.rgb,f.depth,camCM);
+			if (visualize==true)
+				viewer.showCloud(cloud);
+			cloud->clear();
+		}while (true);
 	}
 	//initialize
 	cout<<"Initializeing..."<<endl;
@@ -326,7 +348,6 @@ CYCLE:
 	cout<<"saving the point cloud map..."<<endl;
 	PointCloud::Ptr output(new PointCloud());//global map
 	PointCloud::Ptr tmp(new PointCloud);
-	CAMERA_INTRINSIC_PARAMETERS camCM=getDefaultCamera();//get camera calibration matrix
 
 	pcl::VoxelGrid<PointT> voxel;//grid filter, adjust the map resolution
 	double gridsize=atof(pd.getData("voxel_grid").c_str());//resolution can be adjusted in parameters.txt
@@ -432,6 +453,11 @@ FRAME readFrame(int index, ParameterReader& pd)
 	ss>>filename;
 
 	f.depth=cv::imread(filename,-1);//-1 for 16UC1
+	/*for (int i=0;i<f.depth.cols*f.depth.rows;++i){
+		if (((ushort*)f.depth.data)[i]>0){
+			((ushort*)f.depth.data)[i]-=275;
+		}
+	}*/
 	f.frameID=index;
 	
 	return f;
@@ -497,7 +523,13 @@ FRAME readFrame(int index, ParameterReader& pd,IColorFrameReader* colorfr,IDepth
 				//	depth.ptr<ushort>(i)[j]=4500;
 				//else depth.ptr<ushort>(i)[j]+=275;
 		}*/
-		HRESULT hres=pMapper->MapColorFrameToDepthSpace(sizeD.height*sizeD.width,(UINT16*)depth.data,sizeC.height*sizeC.width,(DepthSpacePoint*)pColorSP);
+		/*for (int i=0;i<depth.cols*depth.rows;++i){
+			if (((ushort*)depth.data)[i]>0){
+				((ushort*)depth.data)[i]+=275;
+			}
+		}*/
+		HRESULT hres=pMapper->MapColorFrameToDepthSpace(sizeD.height*sizeD.width,
+			(UINT16*)depth.data,sizeC.height*sizeC.width,(DepthSpacePoint*)pColorSP);
 		if (hres==S_OK)
 			hres=pMapper->MapDepthFrameToColorSpace(sizeD.height*sizeD.width,(UINT16*)depth.data,sizeD.height*sizeD.width,pColorSP2);
 		if (hres!=S_OK){
@@ -599,14 +631,28 @@ FRAME readFrame(int index, ParameterReader& pd,IColorFrameReader* colorfr,IDepth
 		cv::flip(depsh,depsh,1);
 		imshow("Test Depth",depsh);
 	}while (cv::waitKey(30)!=VK_ESCAPE&&bFirst);
-	delete pColorSP2;
 
 	////f.depth=cv::Mat(sizeD.height,sizeD.width,CV_16UC1);
 	//x:(110-860)*2 is effective
-	//depth.copyTo(f.depth);
+	/*depth.copyTo(f.depth);
+	f.rgb=cv::Mat(sizeD,CV_8UC3);
+	for (int m=0;m<f.rgb.rows;++m){
+		for (int n=0;n<f.rgb.cols;++n){
+			int mapy=pColorSP2[m*f.rgb.cols+n].Y,mapx=pColorSP2[m*f.rgb.cols+n].X;
+			if (mapy<0||mapy>=rgb.rows||mapx<0||mapx>=rgb.cols)
+			{
+				f.rgb.ptr<uchar>(m)[n*3]=f.rgb.ptr<uchar>(m)[n*3+1]=f.rgb.ptr<uchar>(m)[n*3+2]=0;
+			}else{
+				int index_tmp=mapy*rgb.cols+mapx;
+				for (int k=0;k<3;++k)
+					f.rgb.data[(m*f.rgb.cols+n)*3+k]=rgb.data[index_tmp*4+k];
+			}
+		}
+	}*/
+	delete pColorSP2;
 	f.rgb=cv::Mat(shSize,CV_8UC3);
-	for (int m=0;m<f.rgb.rows;m++)
-		for (int n=0;n<f.rgb.cols;n++){
+	for (int m=0;m<f.rgb.rows;++m)
+		for (int n=0;n<f.rgb.cols;++n){
 			int index_tmp=(m*rgb.rows/f.rgb.rows*rgb.cols+n*rgb.cols/f.rgb.cols)*4;
 			f.rgb.ptr<uchar>(m)[n*3]=rgb.data[index_tmp];//change 4 channels to 3, b
 			f.rgb.ptr<uchar>(m)[n*3+1]=rgb.data[index_tmp+1];//g
@@ -623,7 +669,7 @@ FRAME readFrame(int index, ParameterReader& pd,IColorFrameReader* colorfr,IDepth
 			}else{
 				int index_tmp=(int)pColorSP[m*rgb.cols+n].Y*depth.cols+(int)pColorSP[m*rgb.cols+n].X;
 				int tmp=((UINT16*)depth.data)[index_tmp];
-				if (tmp>0) tmp+=275;//about 27.5cm depth offset for my kinectv2!
+				//if (tmp>0) tmp+=275;//about 27.5cm depth offset for my kinectv2!
 				f.depth.ptr<ushort>(i)[j]=tmp;
 			}
 		}
